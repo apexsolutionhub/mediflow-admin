@@ -1,0 +1,302 @@
+"use client";
+
+import * as React from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  type ColumnDef,
+  type PaginationState,
+  type VisibilityState,
+  useReactTable,
+} from "@tanstack/react-table";
+import { ChevronLeft, ChevronRight, Search, Settings2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
+type ApexDataTableProps<TData> = {
+  data: TData[];
+  columns: ColumnDef<TData, unknown>[];
+  emptyState?: React.ReactNode;
+  pageSize?: number;
+  noun?: string;
+  className?: string;
+  tableClassName?: string;
+  rowClassName?: string | ((row: TData) => string | undefined);
+  searchPlaceholder?: string;
+  /** Defaults to true — search + column visibility */
+  showToolbar?: boolean;
+};
+
+function stringifySearchValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => stringifySearchValue(item)).join(" ");
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map((item) => stringifySearchValue(item))
+      .join(" ");
+  }
+  return "";
+}
+
+function columnVisibilityLabel<TData>(column: {
+  id: string;
+  columnDef: ColumnDef<TData, unknown>;
+}): string {
+  const meta = column.columnDef.meta as { label?: string } | undefined;
+  if (meta?.label?.trim()) return meta.label.trim();
+
+  const header = column.columnDef.header;
+  if (typeof header === "string" && header.trim()) return header.trim();
+
+  return column.id
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
+
+export function ApexDataTable<TData>({
+  data,
+  columns,
+  emptyState,
+  pageSize = 10,
+  noun = "rows",
+  className,
+  tableClassName,
+  rowClassName,
+  searchPlaceholder = "Search…",
+  showToolbar = true,
+}: ApexDataTableProps<TData>) {
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize,
+  });
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = React.useState("");
+
+  React.useEffect(() => {
+    setPagination((current) =>
+      current.pageSize === pageSize ? current : { pageIndex: 0, pageSize },
+    );
+  }, [pageSize]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: {
+      pagination,
+      columnVisibility,
+      globalFilter,
+    },
+    onPaginationChange: setPagination,
+    onColumnVisibilityChange: setColumnVisibility,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const needle = String(filterValue ?? "").trim().toLowerCase();
+      if (!needle) return true;
+      return stringifySearchValue(row.original).toLowerCase().includes(needle);
+    },
+  });
+
+  const rows = table.getRowModel().rows;
+  const filteredTotal = table.getFilteredRowModel().rows.length;
+  const filteredNoun = filteredTotal === 1 ? noun.replace(/s$/, "") : noun;
+  const pageCount = table.getPageCount();
+  const start =
+    filteredTotal === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
+  const end = Math.min(
+    filteredTotal,
+    (pagination.pageIndex + 1) * pagination.pageSize,
+  );
+  const visibleColumns = table
+    .getAllColumns()
+    .filter(
+      (column) =>
+        column.getCanHide() &&
+        !["actions", "action", "review", "open"].includes(column.id),
+    );
+
+  if (data.length === 0) {
+    return <>{emptyState ?? null}</>;
+  }
+
+  return (
+    <div className={cn("overflow-hidden", className)}>
+      {showToolbar ? (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={globalFilter}
+              onChange={(e) => {
+                setGlobalFilter(e.target.value);
+                table.setPageIndex(0);
+              }}
+              className="apex-search-input h-11 rounded-xl pl-10"
+            />
+          </div>
+
+          {visibleColumns.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-11 gap-2 rounded-xl px-4 sm:w-auto"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                {visibleColumns.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) => column.toggleVisibility(Boolean(value))}
+                  >
+                    {columnVisibilityLabel(column)}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="apex-table-wrap overflow-x-auto">
+        <Table className={cn("min-w-full", tableClassName)}>
+          <TableHeader className="bg-muted/25">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                {headerGroup.headers.map((header) => {
+                  const meta = header.column.columnDef.meta as
+                    | { headerClassName?: string }
+                    | undefined;
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className={cn(
+                        "h-11 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
+                        meta?.headerClassName,
+                      )}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="py-10 text-center text-muted-foreground"
+                >
+                  No matching {noun}.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={cn(
+                    "apex-table-row border-border transition-colors hover:bg-muted/25.5",
+                    typeof rowClassName === "function"
+                      ? rowClassName(row.original)
+                      : rowClassName,
+                  )}
+                >
+                  {row.getVisibleCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta as
+                      | { className?: string }
+                      | undefined;
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn("px-3 py-3.5 align-middle", meta?.className)}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <p className="text-xs text-muted-foreground">
+          Showing <span className="font-medium text-foreground">{start}–{end}</span> of{" "}
+          <span className="font-medium text-foreground">{filteredTotal}</span>{" "}
+          {filteredNoun}
+        </p>
+
+        {pageCount > 1 ? (
+          <div className="flex items-center justify-center gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {table.getState().pagination.pageIndex + 1} / {pageCount}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
