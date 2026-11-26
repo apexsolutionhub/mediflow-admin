@@ -20,7 +20,7 @@ import type {
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL?.split(",")[0]?.trim().replace(/\/$/, "") ||
-  "http://localhost:8001/api"
+  "https://mediflow-admin-backend.vercel.app/api"
 );
 
 const TOKEN_KEY = "apex_token";
