@@ -33,6 +33,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ApexCommandPalette } from "@/components/apex/CommandPalette";
+import { ServerTokenReveal } from "@/components/apex/ServerTokenReveal";
 import { ApexLogo, ApexLogoMark } from "@/components/apex/ApexLogo";
 
 function isNavActive(item: ApexNavItem, pathname: string, searchParams: URLSearchParams) {
@@ -321,6 +322,7 @@ function ConsoleShellInner({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="apex-page flex-1 px-4 py-6 md:px-6 md:py-8">{children}</main>
+          <ServerTokenReveal />
         </SidebarInset>
       </div>
     </SidebarProvider>

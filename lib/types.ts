@@ -35,6 +35,15 @@ export type ClinicServerNode = {
   created_at: string;
 };
 
+/** A clinic server token handed over right after Apex creates or approves an offline clinic. Shown once. */
+export type IssuedServerToken = {
+  token: string;
+  branch_name: string;
+  node: ClinicServerNode;
+  /** Filled by the client: which clinic it belongs to. */
+  tin?: string;
+};
+
 export type ClinicServerInfo = {
   tin: string;
   clinic_name: string;

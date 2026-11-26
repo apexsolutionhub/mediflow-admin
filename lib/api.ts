@@ -9,6 +9,7 @@ import type {
   FeedbackMessage,
   ClinicServerInfo,
   ClinicServerNode,
+  IssuedServerToken,
   OpsModeChangeRequest,
   PaymentSubmission,
   PricingRule,
@@ -193,9 +194,30 @@ export async function deleteTenantBranch(tin: string, id: number) {
   await api.delete(`/tenants/${encodeURIComponent(tin)}/branches/${id}/`);
 }
 
-export async function createTenant(payload: CreateTenantPayload) {
-  const { data } = await api.post<Tenant>("/tenants/", payload);
+/** The window event the one-time token popup listens to (see ServerTokenReveal). */
+export const SERVER_TOKEN_EVENT = "apex:server-token";
+
+/**
+ * When Apex creates or approves an offline clinic, the API hands over its clinic server token in the same answer.
+ * It is shown once and cannot be recovered, so announce it to the popup and drop it from the returned data.
+ */
+function announceServerToken<T extends { server_token?: IssuedServerToken | null }>(
+  data: T,
+  tin: string,
+): T {
+  const issued = data.server_token;
+  if (issued && typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent<IssuedServerToken>(SERVER_TOKEN_EVENT, { detail: { ...issued, tin } }),
+    );
+  }
+  if ("server_token" in data) delete data.server_token;
   return data;
+}
+
+export async function createTenant(payload: CreateTenantPayload) {
+  const { data } = await api.post<Tenant & { server_token?: IssuedServerToken | null }>("/tenants/", payload);
+  return announceServerToken(data, data.pharmacy_tin);
 }
 
 export async function updateTenant(
@@ -229,10 +251,11 @@ export async function listPendingPayments(kind?: "setup" | "quarterly" | "yearly
 }
 
 export async function approveSetupPayment(pharmacy_tin: string) {
-  const { data } = await api.post<Tenant>("/tenants/payments/approve-setup/", {
-    pharmacy_tin,
-  });
-  return data;
+  const { data } = await api.post<Tenant & { server_token?: IssuedServerToken | null }>(
+    "/tenants/payments/approve-setup/",
+    { pharmacy_tin },
+  );
+  return announceServerToken(data, pharmacy_tin);
 }
 
 export async function approveQuarterlyPayment(pharmacy_tin: string) {
@@ -431,11 +454,12 @@ export async function listOpsModeRequests(status: "pending" | "approved" | "all"
 }
 
 export async function approveOpsModeRequest(request_id: number, review_note = "") {
-  const { data } = await api.post<{ detail: string; request: OpsModeChangeRequest }>(
-    "/tenants/ops-mode-requests/approve/",
-    { request_id, review_note },
-  );
-  return data;
+  const { data } = await api.post<{
+    detail: string;
+    request: OpsModeChangeRequest;
+    server_token?: IssuedServerToken | null;
+  }>("/tenants/ops-mode-requests/approve/", { request_id, review_note });
+  return announceServerToken(data, data.request.pharmacy_tin);
 }
 
 export async function rejectOpsModeRequest(request_id: number, reason: string) {

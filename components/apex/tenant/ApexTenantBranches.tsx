@@ -103,11 +103,7 @@ export function ApexTenantBranches({
       toast.error("Branch name is required");
       return;
     }
-    if (!branchTin.trim()) {
-      toast.error("Branch TIN is required");
-      return;
-    }
-    if (hasMain && branchTin.trim().toLowerCase() === tin.trim().toLowerCase()) {
+    if (branchTin.trim() && hasMain && branchTin.trim().toLowerCase() === tin.trim().toLowerCase()) {
       toast.error("Satellite branches need their own TIN (different from the organization TIN)");
       return;
     }
@@ -119,9 +115,10 @@ export function ApexTenantBranches({
       toast.error("Branch manager password must be at least 6 characters");
       return;
     }
+    const wasBlank = !branchTin.trim();
     setBusy(true);
     try {
-      await createTenantBranch(tin, {
+      const created = await createTenantBranch(tin, {
         name: name.trim(),
         address: address.trim(),
         branch_tin: branchTin.trim(),
@@ -135,7 +132,11 @@ export function ApexTenantBranches({
       setManagerUsername("");
       setManagerPassword("");
       setAsMain(false);
-      toast.success("Branch and manager created");
+      toast.success("Branch and manager created", {
+        description: wasBlank
+          ? `No TIN was entered, so this branch was given ${created.branch_tin}. A TIN never changes once the branch has data.`
+          : undefined,
+      });
       await reloadAndNotify();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -186,7 +187,7 @@ export function ApexTenantBranches({
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-foreground">Add a branch</h3>
                 <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
-                  Enter the site name, its own TIN, and address, then create the branch manager login.
+                  Enter the site name, its own TIN (leave it blank to generate one), and address, then create the branch manager login. A TIN cannot be changed later.
                 </p>
               </div>
             </div>
@@ -214,7 +215,7 @@ export function ApexTenantBranches({
                     id="branch-tin"
                     value={branchTin}
                     onChange={(e) => setBranchTin(e.target.value)}
-                    placeholder="Unique tax ID"
+                    placeholder="Blank = auto-generate"
                     inputMode="numeric"
                     autoComplete="off"
                     className="h-11 rounded-xl bg-background/70 font-mono tracking-wide"

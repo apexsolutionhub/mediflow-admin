@@ -1,8 +1,11 @@
 "use client";
 
-import { Building2, CalendarClock, Users, Wallet } from "lucide-react";
+import { useState } from "react";
+import { Building2, CalendarClock, Server, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { Tenant } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { ClinicServerDialog } from "@/components/apex/ClinicServerDialog";
 import { OpsModePill } from "@/components/apex/OpsModePill";
 import {
   AccountStatusBadge,
@@ -12,6 +15,7 @@ import { deriveSubscriptionStatus } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 export function ApexTenantSummaryStrip({ tenant }: { tenant: Tenant }) {
+  const [serverOpen, setServerOpen] = useState(false);
   const manager =
     tenant.manager_username ||
     tenant.staff?.find((s) => (s.role || "").toLowerCase() === "manager")?.username ||
@@ -113,12 +117,26 @@ export function ApexTenantSummaryStrip({ tenant }: { tenant: Tenant }) {
                   </span>
                 ) : null}
               </div>
-              <Link
-                href="/ops-mode-requests"
-                className="text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
-              >
-                Review ops mode requests
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/ops-mode-requests"
+                  className="text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                >
+                  Review ops mode requests
+                </Link>
+                {tenant.ops_mode === "offline" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 rounded-full px-3 text-[11px]"
+                    onClick={() => setServerOpen(true)}
+                  >
+                    <Server className="size-3.5" />
+                    Clinic server
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -162,6 +180,11 @@ export function ApexTenantSummaryStrip({ tenant }: { tenant: Tenant }) {
           })}
         </div>
       </div>
+      <ClinicServerDialog
+        tin={tenant.pharmacy_tin}
+        open={serverOpen}
+        onOpenChange={setServerOpen}
+      />
     </div>
   );
 }
